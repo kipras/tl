@@ -2316,6 +2316,7 @@ function tl.type_check(ast)
    local function is_a(t1, t2)
       assert(type(t1) == "table")
       assert(type(t2) == "table")
+
       if t2.typename ~= "tuple" then
          t1 = resolve_tuple(t1)
       end
@@ -2325,6 +2326,8 @@ function tl.type_check(ast)
             [1] = t1,
          }
       end
+
+      -- do the quick type checks first
       if t2.typename == "any" then
          return true
       elseif t1.typename == "nil" then
@@ -2333,7 +2336,16 @@ function tl.type_check(ast)
          return true
       elseif t1.typename == "nominal" and t2.typename == "nominal" then
          return t1.name == t2.name
-      elseif t1.typename == "nominal" or t2.typename == "nominal" then
+      end
+
+      if t1.typename == "uniontype" then
+         for _, t1_t in ipairs(t1.types) do
+            if is_a(t1_t, t2) then return true end
+         end
+         return false
+      end
+
+      if t1.typename == "nominal" or t2.typename == "nominal" then
          t1 = resolve_unary(t1)
          t2 = resolve_unary(t2)
          return is_a(t1, t2)
