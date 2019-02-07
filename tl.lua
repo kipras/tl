@@ -1,5 +1,17 @@
 local tl = {}
 local inspect = require("inspect")
+
+local _print = print
+print = function (...)
+   local args = {...}
+   for idx, arg in ipairs(args) do
+      if type(arg) ~= "string" then
+         args[idx] = inspect(arg)
+      end
+   end
+   return _print(table.unpack(args))
+end
+
 local keywords = {
    ["and"] = true,
    ["break"] = true,
@@ -1016,7 +1028,7 @@ end
 return i, node
 end
 function tl.parse_program(tokens, errs)
-   return parse_statements(tokens,1, errs)
+   return parse_statements(tokens, 1, errs)
 end
 local VisitorCallbacks = tl.record({
    ["before"] = tl.fun({
@@ -1547,6 +1559,12 @@ visit["..."] = visit["variable"]
 visit["typedecl"] = visit["type_list"]
 return recurse_ast(ast, visit)
 end
+
+-- @TODO: what are these?
+-- why was there no RECORD, ARRAYRECORD, MAP (i added them) ??
+
+local UNION_TYPE = { typename = "uniontype", types = {} }   -- added by me
+
 local ANY = {
    ["typename"] = "any",
 }
@@ -1575,6 +1593,32 @@ local FUNCTION = {
 local INVALID = {
    ["typename"] = "invalid",
 }
+
+-- these were added by me for dynamic generation of equality_binop
+local UNKNOWN = { typename = "unknown" }
+local RECORD = { typename = "record" }             -- what is a "record" ? is it a table?
+local ARRAYRECORD = { typename = "arrayrecord" }
+local MAP = { typename = "map" }
+
+-- TYPES was added by me for dynamic generation of equality_binop
+local TYPES = {
+   ANY = ANY,
+   NIL = NIL,
+   ARRAY_OF_ANY = ARRAY_OF_ANY,
+   NUMBER = NUMBER,
+   STRING = STRING,
+   BOOLEAN = BOOLEAN,
+   FUNCTION = FUNCTION,
+   INVALID = INVALID,
+
+   -- these were added by me for dynamic generation of equality_binop
+   UNKNOWN = UNKNOWN,
+   RECORD = RECORD,
+   ARRAYRECORD = ARRAYRECORD,
+   MAP = MAP,
+   UNION_TYPE = UNION_TYPE,
+}
+
 local numeric_binop = {
    [2] = {
       ["number"] = {
@@ -1595,75 +1639,115 @@ local relational_binop = {
       },
    },
 }
-local equality_binop = {
-   [2] = {
-      ["number"] = {
-         ["number"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["string"] = {
-         ["string"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["boolean"] = {
-         ["boolean"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["record"] = {
-         ["arrayrecord"] = BOOLEAN,
-         ["record"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["array"] = {
-         ["arrayrecord"] = BOOLEAN,
-         ["array"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["arrayrecord"] = {
-         ["arrayrecord"] = BOOLEAN,
-         ["record"] = BOOLEAN,
-         ["array"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-      ["map"] = {
-         ["map"] = BOOLEAN,
-         ["nil"] = BOOLEAN,
-      },
-   },
-}
-local boolean_binop = {
-   [2] = {
-      ["boolean"] = {
-         ["boolean"] = BOOLEAN,
-         ["function"] = FUNCTION,
-      },
-      ["number"] = {
-         ["number"] = NUMBER,
-         ["boolean"] = BOOLEAN,
-      },
-      ["string"] = {
-         ["string"] = STRING,
-         ["boolean"] = BOOLEAN,
-      },
-      ["function"] = {
-         ["function"] = FUNCTION,
-         ["boolean"] = BOOLEAN,
-      },
-      ["array"] = {
-         ["boolean"] = BOOLEAN,
-      },
-      ["record"] = {
-         ["boolean"] = BOOLEAN,
-      },
-      ["arrayrecord"] = {
-         ["boolean"] = BOOLEAN,
-      },
-      ["map"] = {
-         ["boolean"] = BOOLEAN,
-      },
-   },
-}
-local op_types = {
+
+-- anything can be compared with anything else and the result will always be a boolean
+local equality_binop = { [2] = {} }
+for _, t1 in pairs(TYPES) do
+   equality_binop[2][t1.typename] = {}
+   for _, t2 in pairs(TYPES) do
+      equality_binop[2][t1.typename][t2.typename] = BOOLEAN
+   end
+end
+
+--local equality_binop = {
+--   [2] = {
+--      ["number"] = {
+--         ["number"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["string"] = {
+--         ["string"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["boolean"] = {
+--         ["boolean"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["record"] = {
+--         ["arrayrecord"] = BOOLEAN,
+--         ["record"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["array"] = {
+--         ["arrayrecord"] = BOOLEAN,
+--         ["array"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["arrayrecord"] = {
+--         ["arrayrecord"] = BOOLEAN,
+--         ["record"] = BOOLEAN,
+--         ["array"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--      ["map"] = {
+--         ["map"] = BOOLEAN,
+--         ["nil"] = BOOLEAN,
+--      },
+--   },
+--}
+
+-- @TODO: this should generate a uniontype instead, since we don't know which one of the 2 values
+-- being "and"ed or "or"ed will be returned
+-- added by me, this generates boolean_binop - the map or resulting type of boolean operations,
+-- based on the types of values operated on:
+-- boolean_binop = {
+--    [2] = {
+--       ["boolean"] = {
+--          ["boolean"] = BOOLEAN,
+--          ["function"] = FUNCTION,
+--          ...
+--       },
+--       ...
+--    }
+--
+local boolean_binop = { [2] = {} }
+for tname, t in pairs(TYPES) do
+   if t ~= INVALID then
+      boolean_binop[2][t.typename] = {}
+      for tname2, t2 in pairs(TYPES) do
+         if t2 ~= INVALID then
+            boolean_binop[2][t.typename][t2.typename] = t2
+         end
+      end
+   end
+end
+--
+--local boolean_binop = {
+--   [2] = {
+--      ["boolean"] = {
+--         ["boolean"] = BOOLEAN,
+--         ["function"] = FUNCTION,
+--      },
+--      ["number"] = {
+--         ["number"] = NUMBER,
+--         ["boolean"] = BOOLEAN,
+--      },
+--      ["string"] = {
+--         ["string"] = STRING,
+--         ["boolean"] = BOOLEAN,
+--      },
+--      ["function"] = {
+--         ["function"] = FUNCTION,
+--         ["boolean"] = BOOLEAN,
+--      },
+--      ["array"] = {
+--         ["boolean"] = BOOLEAN,
+--      },
+--      ["record"] = {
+--         ["boolean"] = BOOLEAN,
+--         ["function"] = FUNCTION,
+--      },
+--      ["arrayrecord"] = {
+--         ["boolean"] = BOOLEAN,
+--      },
+--      ["map"] = {
+--         ["boolean"] = BOOLEAN,
+--      },
+--   },
+--}
+
+-- operation result type inferring, when all operands are basic types
+local basic_op_types = {
    ["#"] = {
       [1] = {
          ["arrayrecord"] = NUMBER,
@@ -1705,17 +1789,217 @@ local op_types = {
    ["and"] = boolean_binop,
    [".."] = {
       [2] = {
+         any = {
+            any = STRING,
+            string = STRING,
+            number = STRING,
+         },
          ["string"] = {
+            any = STRING,
             ["string"] = STRING,
             ["number"] = STRING,
          },
          ["number"] = {
+            any = STRING,
             ["number"] = STRING,
             ["string"] = STRING,
          },
       },
    },
 }
+
+local function boolean_union_binop(ops)
+   -- @TODO: when operation is "and" and we know that first operand evaluates to:
+   --    * false - return the type of the first operand.
+   --    * true - return the type of the second operand
+   -- For "or" - when first operand evaluates to:
+   --    * false - return the type of the second operand.
+   --    * true - return the type of the first operand
+
+   if #ops ~= 2 then return nil end -- must have 2 operands
+
+   return { typename = "uniontype", types = {ops[1], ops[2]} }
+end
+
+---Relational operations can only return a number, and can only operate if all operands are numbers
+-- or union types that can contain a number
+local function relational_union_binop(ops)
+   for _, op in ipairs(ops) do
+      if op.typename == "uniontype" then
+         local union_has_number = false
+         for _, t in ipairs(op.types) do
+            if t.typename == "number" then
+               union_has_number = true
+               break
+            end
+         end
+         if not union_has_number then
+            return nil
+         end
+      elseif op.typename ~= "number" then
+         return nil
+      end
+   end
+   return NUMBER
+end
+
+---Concatenation operation is possible if both args can contain a number or string.
+-- It always returns a string.
+local function concat_union_binop(ops)
+   if #ops ~= 2 then return nil end -- must have 2 operands
+
+   for _, op in ipairs(ops) do
+      if op.typename == "uniontype" then
+         local union_is_concatenatable = false
+         for _, t in ipairs(op.types) do
+            if t.typename == "any" or t.typename == "string" or t.typename == "number" then
+               union_is_concatenatable = true
+               break
+            end
+            if not union_is_concatenatable then
+               return nil
+            end
+         end
+      elseif op.typename ~= "any" and op.typename ~= "string" and op.typename ~= "number" then
+         return nil
+      end
+   end
+   return STRING
+end
+
+-- operation result type inferring, when at least one of the operands is a "uniontype"
+local union_op_types = {
+   ["or"] = boolean_union_binop,
+   ["and"] = boolean_union_binop,
+   ["<="] = relational_union_binop,
+   [">="] = relational_union_binop,
+   ["<"] = relational_union_binop,
+   [">"] = relational_union_binop,
+   [".."] = concat_union_binop,
+}
+
+--local basic_op_types = {
+--   ["#"] = function (ops)
+--      if #ops == 1 then
+--         if
+--         return {
+--            ["arrayrecord"] = NUMBER,
+--            ["string"] = NUMBER,
+--            ["array"] = NUMBER,
+--            ["map"] = NUMBER,
+--         }
+--      end
+--   end,
+--   ["+"] = function (ops) return numeric_binop end,
+--   ["-"] = function (ops)
+--      return {
+--         [1] = {
+--            ["number"] = NUMBER,
+--         },
+--         [2] = {
+--            ["number"] = {
+--               ["number"] = NUMBER,
+--            },
+--         },
+--      }
+--   end,
+--   ["*"] = function (ops) end, numeric_binop,
+--   ["/"] = function (ops) end, numeric_binop,
+--   ["=="] = function (ops) end, equality_binop,
+--   ["~="] = function (ops) end, equality_binop,
+--   ["<="] = function (ops) end, relational_binop,
+--   [">="] = function (ops) end, relational_binop,
+--   ["<"] = function (ops) end, relational_binop,
+--   [">"] = function (ops) end, relational_binop,
+--   ["not"] = function (ops) end, {
+--      [1] = {
+--         ["string"] = BOOLEAN,
+--         ["boolean"] = BOOLEAN,
+--         ["record"] = BOOLEAN,
+--         ["arrayrecord"] = BOOLEAN,
+--         ["array"] = BOOLEAN,
+--         ["map"] = BOOLEAN,
+--         unknown = BOOLEAN,
+--      },
+--   },
+--   ["or"] = function (ops) end, boolean_binop,
+--   ["and"] = function (ops) end, boolean_binop,
+--   [".."] = {
+--      [2] = {
+--         ["string"] = {
+--            ["string"] = STRING,
+--            ["number"] = STRING,
+--         },
+--         ["number"] = {
+--            ["number"] = STRING,
+--            ["string"] = STRING,
+--         },
+--      },
+--   },
+--}
+
+--local op_types = {
+--   ["#"] = true,
+--   ["+"] = true,
+--   ["-"] = true,
+--   ["*"] = true,
+--   ["/"] = true,
+--   ["=="] = true,
+--   ["~="] = true,
+--   ["<="] = true,
+--   [">="] = true,
+--   ["<"] = true,
+--   [">"] = true,
+--   ["not"] = true,
+--   ["or"] = true,
+--   ["and"] = true,
+--   [".."] = true,
+--}
+
+local op_types = {}
+for k, _ in pairs(basic_op_types) do op_types[k] = true end
+
+local function infer_op_result_type(op, ...)
+   local args = {...}
+
+--   print("infer_op_result_type(), op = ", op, ", args = ", args)
+
+   -- if at least one of the operands is a "uniontype" - check if there is specific type inference
+   -- for this operation for union types and run it
+   local has_unionops = false
+   for i = 1, #args do
+      if args[i].typename == "uniontype" then
+         has_unionops = true
+         break
+      end
+   end
+   if has_unionops then
+--      print("!!!! has unionops, checking union type inference")
+
+      local t = union_op_types[op]
+      if t then
+         return t(args)
+      end
+   end
+
+   -- no operands are a "uniontype" or no "uniontype" inference needed for this operation,
+   -- do basic type inference
+   if basic_op_types[op] == boolean_binop then
+--      print("!!! returning uniontype")
+
+      -- @TODO: when operation is "and" and we know that first operand evaluates to false - return
+      -- the type of the first operand. Same (but when second operand evaluates to false) for "or".
+      return { typename = "uniontype", types = args }
+   end
+
+   local t = basic_op_types[op][#args]
+   for i = 1, #args do
+      if not t then return nil end
+      t = t[args[i].typename]
+   end
+   return t
+end
+
 local tl_type_declarators = {
    ["boolean"] = "boolean",
    ["record"] = "record",
@@ -2027,6 +2311,8 @@ function tl.type_check(ast)
    local function is_empty_table(t)
       return t.typename == "record" and #t.fields == 0
    end
+
+   ---Determine if t1 is of type t2
    local function is_a(t1, t2)
       assert(type(t1) == "table")
       assert(type(t2) == "table")
@@ -2043,6 +2329,8 @@ function tl.type_check(ast)
          return true
       elseif t1.typename == "nil" then
          return true
+      elseif t2.typename == "nominal" and t2.name == "any" then
+         return true
       elseif t1.typename == "nominal" and t2.typename == "nominal" then
          return t1.name == t2.name
       elseif t1.typename == "nominal" or t2.typename == "nominal" then
@@ -2052,6 +2340,7 @@ function tl.type_check(ast)
       elseif is_empty_table(t1) and (t2.typename == "array" or t2.typename == "map") then
          return true
       elseif (t1.typename == "array" or t1.typename == "arrayrecord") and (t2.typename == "array" or t2.typename == "arrayrecord") then
+--         print("t1.typename = ", t1.typename, "t2.typename = ", t2.typename)
          return is_a(t1.elements, t2.elements)
       elseif t1.typename == "array" and t2.typename == "map" then
          return is_a(NUMBER, t2.keys) and is_a(t1.elements, t2.values)
@@ -2067,6 +2356,8 @@ function tl.type_check(ast)
             end
          end
          return true
+
+      -- @TODO: bug, this condition will never be true
       elseif (t1.typename == "record" or t1.typename == "arrayrecord") and t2.typename == "record" and t2.typename == "arrayrecord" then
          for k, f in pairs(t1.fields) do
             if not is_a(f, t2.fields[k]) then
@@ -2116,7 +2407,7 @@ function tl.type_check(ast)
          table.insert(errors, {
             ["y"] = node.y,
             ["x"] = node.x,
-            ["err"] = "mismatch: " .. (node.tk or node.op.op) .. ": " .. inspect(t1) .. " is not a " .. inspect(t2),
+            ["err"] = "mismatch: " .. (node.tk or node.op.op) .. " : " .. inspect(t1) .. " is not a " .. inspect(t2),
          })
       end
    end
@@ -2152,7 +2443,7 @@ function tl.type_check(ast)
                   table.insert(polyerrs[p], {
                      ["y"] = at.y,
                      ["x"] = at.x,
-                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": " .. inspect(arg) .. " is not a " .. inspect(f.args[a]) .. ": " .. (why_not or ""),
+                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": (1)" .. inspect(arg) .. " is not a " .. inspect(f.args[a]) .. ": " .. (why_not or ""),
                   })
                   ok = false
                   break
@@ -2171,7 +2462,7 @@ function tl.type_check(ast)
                   table.insert(polyerrs[p], {
                      ["y"] = node.y,
                      ["x"] = node.x,
-                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": " .. inspect(arg) .. " is not a " .. inspect(f.args[a]),
+                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": (2)" .. inspect(arg) .. " is not a " .. inspect(f.args[a]),
                   })
                   ok = false
                   break
@@ -2191,7 +2482,7 @@ function tl.type_check(ast)
                   table.insert(polyerrs[p], {
                      ["y"] = node.y,
                      ["x"] = node.x,
-                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": " .. inspect(arg) .. " is not a " .. inspect(f.args[a]),
+                     ["err"] = "error in argument " .. (is_method and a - 1 or a) .. ": (3)" .. inspect(arg) .. " is not a " .. inspect(f.args[a]),
                   })
                   ok = false
                   break
@@ -2217,21 +2508,50 @@ function tl.type_check(ast)
       poly.poly[1].rets.typename = "tuple"
       return poly.poly[1].rets
    end
+
+   local function is_a_table(t)
+      if t.typename == "record" or t.typename == "arrayrecord" then
+         return true
+      elseif t.typename == "uniontype" then
+         for _, ut in ipairs(t.types) do
+            if is_a_table(ut) then
+               return true
+            end
+         end
+      end
+      return false
+   end
+
+   local function get_table_fields(t)
+      if t.typename == "record" or t.typename == "arrayrecord" then
+         return t.fields
+      elseif t.typename == "uniontype" then
+         for _, ut in ipairs(t.types) do
+            local fields = get_table_fields(ut)
+            if fields then return fields end
+         end
+      end
+      return nil
+   end
+
    local function match_record_key(node, tbl, key, orig_tbl)
       assert(type(tbl) == "table")
       assert(type(key) == "table")
-      if not (tbl.typename == "record" or tbl.typename == "arrayrecord") then
+      if not is_a_table(tbl) then
          table.insert(errors, {
             ["y"] = node.y,
             ["x"] = node.x,
             ["err"] = "not a table: " .. inspect(tbl),
+            ["node"] = node,
          })
          return INVALID
       end
-      assert(tbl.fields, "record has no fields!? " .. inspect(tbl))
+
+      local fields = get_table_fields(tbl)
+      assert(fields, "record has no fields!? " .. inspect(tbl))
       if key.typename == "string" or key.typename == "unknown" or key.kind == "variable" then
-         if tbl.fields[key.tk] then
-            return tbl.fields[key.tk]
+         if fields[key.tk] then
+            return fields[key.tk]
          end
       end
       table.insert(errors, {
@@ -2741,10 +3061,20 @@ end,
          }, orig_a)
       end
    elseif op_types[node.op.op] then
+--      print("==================================")
+--      print("node = ", inspect(node))
+--      print("a = ", inspect(a))
+
       a = resolve_unary(a)
-      local types_op = op_types[node.op.op][node.op.arity]
+
+--      print("resolve_unary(a) = ", inspect(a))
+--      print("==================================")
+
+--      print("type a = ", inspect(a))
+--      local types_op = op_types[node.op.op][node.op.arity]
       if node.op.arity == 1 then
-         node.type = types_op[a.typename]
+--         node.type = types_op[a.typename]
+         node.type = infer_op_result_type(node.op.op, a)
          if not node.type then
             table.insert(errors, {
                ["y"] = node.y,
@@ -2755,7 +3085,8 @@ end,
          end
       elseif node.op.arity == 2 then
          b = resolve_unary(b)
-         node.type = types_op[a.typename] and types_op[a.typename][b.typename]
+--         node.type = types_op[a.typename] and types_op[a.typename][b.typename]
+         node.type = infer_op_result_type(node.op.op, a, b)
          if not node.type then
             table.insert(errors, {
                ["y"] = node.y,
@@ -2810,4 +3141,7 @@ end,
 recurse_ast(ast, visit)
 return errors
 end
+
+--print(inspect(tl))
+
 return tl

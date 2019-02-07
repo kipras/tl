@@ -1504,7 +1504,7 @@ function tl.pretty_print_ast(ast: Node)
          end,
       },
       ["op"] = {
-         after = function(node: Node, children: {string})
+         after = function(node: Node, children: {number})
             local out = {}
             if node.op.op == "@funcall" then
                table.insert(out, children[1])
