@@ -2549,6 +2549,9 @@ function tl.type_check(ast)
    local function match_record_key(node, tbl, key, orig_tbl)
       assert(type(tbl) == "table")
       assert(type(key) == "table")
+
+      if tbl.typename == "any" then return UNKNOWN end
+
       if not is_a_table(tbl) then
          table.insert(errors, {
             ["y"] = node.y,
