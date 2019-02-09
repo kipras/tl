@@ -2161,6 +2161,26 @@ function tl.type_check(ast)
                },
             },
          },
+         next = {
+            typename = "function",
+            args = {
+               {
+                  typename = "uniontype",
+                  types = { RECORD, ARRAYRECORD },
+               },
+            },
+            rets = { ANY },
+         },
+         pairs = {
+            typename = "function",
+            args = {
+               {
+                  typename = "uniontype",
+                  types = { RECORD, ARRAYRECORD },
+               },
+            },
+            rets = { NUMBER, ANY },
+         },
          ["print"] = {
             ["typename"] = "poly",
             ["poly"] = {
