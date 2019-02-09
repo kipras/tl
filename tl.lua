@@ -1962,8 +1962,6 @@ for k, _ in pairs(basic_op_types) do op_types[k] = true end
 local function infer_op_result_type(op, ...)
    local args = {...}
 
---   print("infer_op_result_type(), op = ", op, ", args = ", args)
-
    -- if at least one of the operands is a "uniontype" - check if there is specific type inference
    -- for this operation for union types and run it
    local has_unionops = false
@@ -1974,8 +1972,6 @@ local function infer_op_result_type(op, ...)
       end
    end
    if has_unionops then
---      print("!!!! has unionops, checking union type inference")
-
       local t = union_op_types[op]
       if t then
          return t(args)
@@ -1985,8 +1981,6 @@ local function infer_op_result_type(op, ...)
    -- no operands are a "uniontype" or no "uniontype" inference needed for this operation,
    -- do basic type inference
    if basic_op_types[op] == boolean_binop then
---      print("!!! returning uniontype")
-
       -- @TODO: when operation is "and" and we know that first operand evaluates to false - return
       -- the type of the first operand. Same (but when second operand evaluates to false) for "or".
       return { typename = "uniontype", types = args }
@@ -2328,7 +2322,8 @@ function tl.type_check(ast)
       end
 
       -- do the quick type checks first
-      if t1.typename == "any" or t2.typename == "any" then
+      if t1.typename == "any" or t1.typename == "unknown"
+              or t2.typename == "any" or t2.typename == "unknown" then
          return true
       elseif t1.typename == "nil" then    -- @TODO: this is only correct if t2 accepts nil values
          return true
@@ -2352,7 +2347,6 @@ function tl.type_check(ast)
       elseif is_empty_table(t1) and (t2.typename == "array" or t2.typename == "map") then
          return true
       elseif (t1.typename == "array" or t1.typename == "arrayrecord") and (t2.typename == "array" or t2.typename == "arrayrecord") then
---         print("t1.typename = ", t1.typename, "t2.typename = ", t2.typename)
          return is_a(t1.elements, t2.elements)
       elseif t1.typename == "array" and t2.typename == "map" then
          return is_a(NUMBER, t2.keys) and is_a(t1.elements, t2.values)
@@ -3087,19 +3081,8 @@ end,
          }, orig_a)
       end
    elseif op_types[node.op.op] then
---      print("==================================")
---      print("node = ", inspect(node))
---      print("a = ", inspect(a))
-
       a = resolve_unary(a)
-
---      print("resolve_unary(a) = ", inspect(a))
---      print("==================================")
-
---      print("type a = ", inspect(a))
---      local types_op = op_types[node.op.op][node.op.arity]
       if node.op.arity == 1 then
---         node.type = types_op[a.typename]
          node.type = infer_op_result_type(node.op.op, a)
          if not node.type then
             table.insert(errors, {
@@ -3111,7 +3094,6 @@ end,
          end
       elseif node.op.arity == 2 then
          b = resolve_unary(b)
---         node.type = types_op[a.typename] and types_op[a.typename][b.typename]
          node.type = infer_op_result_type(node.op.op, a, b)
          if not node.type then
             table.insert(errors, {
