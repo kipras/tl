@@ -2328,9 +2328,9 @@ function tl.type_check(ast)
       end
 
       -- do the quick type checks first
-      if t2.typename == "any" then
+      if t1.typename == "any" or t2.typename == "any" then
          return true
-      elseif t1.typename == "nil" then
+      elseif t1.typename == "nil" then    -- @TODO: this is only correct if t2 accepts nil values
          return true
       elseif t2.typename == "nominal" and t2.name == "any" then
          return true

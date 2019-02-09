@@ -1253,7 +1253,7 @@ function tl.pretty_print_ast(ast: Node)
          before = function()
             indent = indent + 1
          end,
-         after = function(node: Node, children: {string})
+         after = function(node: Node, children: table)
             local out = {}
             table.insert(out, "if ")
             table.insert(out, children[1])
