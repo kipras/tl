@@ -2882,19 +2882,30 @@ end,
          end
       end
    else
-      node.type = {
-         ["typename"] = "record",
-         ["fields"] = {},
-      }
-      for _, child in ipairs(children) do
-         if child.typename == "kv" then
-            node.type.fields[child.k] = child.v
-         else
-            table.insert(errors, {
-               ["y"] = node.y,
-               ["x"] = node.x,
-               ["err"] = "mixing array fields in a record",
-            })
+      if #children == 0 then
+         -- when an empty table is being created - we don't know if it will be used as a record or
+         -- an array (or both), so we use "arrayrecord" here to allow for both types, since we are
+         -- not strict
+         node.type = {
+            typename = "arrayrecord",
+            elements = UNKNOWN,
+            fields = {},
+         }
+      else
+         node.type = {
+            ["typename"] = "record",
+            ["fields"] = {},
+         }
+         for _, child in ipairs(children) do
+            if child.typename == "kv" then
+               node.type.fields[child.k] = child.v
+            else
+               table.insert(errors, {
+                  ["y"] = node.y,
+                  ["x"] = node.x,
+                  ["err"] = "mixing array fields in a record",
+               })
+            end
          end
       end
    end
