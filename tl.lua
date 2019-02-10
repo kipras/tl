@@ -2564,7 +2564,7 @@ function tl.type_check(ast)
       assert(type(tbl) == "table")
       assert(type(key) == "table")
 
-      if tbl.typename == "any" then return UNKNOWN end
+      if tbl.typename == "any" or tbl.typename == "unknown" then return UNKNOWN end
 
       if not is_a_table(tbl) then
          table.insert(errors, {
