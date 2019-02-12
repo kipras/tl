@@ -1560,10 +1560,7 @@ visit["typedecl"] = visit["type_list"]
 return recurse_ast(ast, visit)
 end
 
--- @TODO: what are these?
--- why was there no RECORD, ARRAYRECORD, MAP (i added them) ??
-
-local UNION_TYPE = { typename = "uniontype", types = {} }   -- added by me
+local UNION_TYPE = { typename = "uniontype", types = {} }
 
 local ANY = {
    ["typename"] = "any",
@@ -1594,14 +1591,13 @@ local INVALID = {
    ["typename"] = "invalid",
 }
 
--- these were added by me for dynamic generation of equality_binop
 local UNKNOWN = { typename = "unknown" }
-local RECORD = { typename = "record" }             -- what is a "record" ? is it a table?
+local RECORD = { typename = "record" }
 local ARRAYRECORD = { typename = "arrayrecord" }
 local MAP = { typename = "map" }
 
--- TYPES was added by me for dynamic generation of equality_binop
 local TYPES = {
+   UNION_TYPE = UNION_TYPE,
    ANY = ANY,
    NIL = NIL,
    ARRAY_OF_ANY = ARRAY_OF_ANY,
@@ -1610,13 +1606,10 @@ local TYPES = {
    BOOLEAN = BOOLEAN,
    FUNCTION = FUNCTION,
    INVALID = INVALID,
-
-   -- these were added by me for dynamic generation of equality_binop
    UNKNOWN = UNKNOWN,
    RECORD = RECORD,
    ARRAYRECORD = ARRAYRECORD,
    MAP = MAP,
-   UNION_TYPE = UNION_TYPE,
 }
 
 local numeric_binop = {
@@ -1649,46 +1642,7 @@ for _, t1 in pairs(TYPES) do
    end
 end
 
---local equality_binop = {
---   [2] = {
---      ["number"] = {
---         ["number"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["string"] = {
---         ["string"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["boolean"] = {
---         ["boolean"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["record"] = {
---         ["arrayrecord"] = BOOLEAN,
---         ["record"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["array"] = {
---         ["arrayrecord"] = BOOLEAN,
---         ["array"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["arrayrecord"] = {
---         ["arrayrecord"] = BOOLEAN,
---         ["record"] = BOOLEAN,
---         ["array"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---      ["map"] = {
---         ["map"] = BOOLEAN,
---         ["nil"] = BOOLEAN,
---      },
---   },
---}
-
--- @TODO: this should generate a uniontype instead, since we don't know which one of the 2 values
--- being "and"ed or "or"ed will be returned
--- added by me, this generates boolean_binop - the map or resulting type of boolean operations,
+-- This generates boolean_binop - the map or resulting type of boolean operations,
 -- based on the types of values operated on:
 -- boolean_binop = {
 --    [2] = {
@@ -1699,6 +1653,8 @@ end
 --       },
 --       ...
 --    }
+-- @TODO: this should generate a uniontype instead, since we don't know which one of the 2 values
+-- being "and"ed or "or"ed will be returned
 --
 local boolean_binop = { [2] = {} }
 for tname, t in pairs(TYPES) do
@@ -1711,40 +1667,6 @@ for tname, t in pairs(TYPES) do
       end
    end
 end
---
---local boolean_binop = {
---   [2] = {
---      ["boolean"] = {
---         ["boolean"] = BOOLEAN,
---         ["function"] = FUNCTION,
---      },
---      ["number"] = {
---         ["number"] = NUMBER,
---         ["boolean"] = BOOLEAN,
---      },
---      ["string"] = {
---         ["string"] = STRING,
---         ["boolean"] = BOOLEAN,
---      },
---      ["function"] = {
---         ["function"] = FUNCTION,
---         ["boolean"] = BOOLEAN,
---      },
---      ["array"] = {
---         ["boolean"] = BOOLEAN,
---      },
---      ["record"] = {
---         ["boolean"] = BOOLEAN,
---         ["function"] = FUNCTION,
---      },
---      ["arrayrecord"] = {
---         ["boolean"] = BOOLEAN,
---      },
---      ["map"] = {
---         ["boolean"] = BOOLEAN,
---      },
---   },
---}
 
 -- operation result type inferring, when all operands are basic types
 local basic_op_types = {
@@ -1877,84 +1799,6 @@ local union_op_types = {
    [">"] = relational_union_binop,
    [".."] = concat_union_binop,
 }
-
---local basic_op_types = {
---   ["#"] = function (ops)
---      if #ops == 1 then
---         if
---         return {
---            ["arrayrecord"] = NUMBER,
---            ["string"] = NUMBER,
---            ["array"] = NUMBER,
---            ["map"] = NUMBER,
---         }
---      end
---   end,
---   ["+"] = function (ops) return numeric_binop end,
---   ["-"] = function (ops)
---      return {
---         [1] = {
---            ["number"] = NUMBER,
---         },
---         [2] = {
---            ["number"] = {
---               ["number"] = NUMBER,
---            },
---         },
---      }
---   end,
---   ["*"] = function (ops) end, numeric_binop,
---   ["/"] = function (ops) end, numeric_binop,
---   ["=="] = function (ops) end, equality_binop,
---   ["~="] = function (ops) end, equality_binop,
---   ["<="] = function (ops) end, relational_binop,
---   [">="] = function (ops) end, relational_binop,
---   ["<"] = function (ops) end, relational_binop,
---   [">"] = function (ops) end, relational_binop,
---   ["not"] = function (ops) end, {
---      [1] = {
---         ["string"] = BOOLEAN,
---         ["boolean"] = BOOLEAN,
---         ["record"] = BOOLEAN,
---         ["arrayrecord"] = BOOLEAN,
---         ["array"] = BOOLEAN,
---         ["map"] = BOOLEAN,
---         unknown = BOOLEAN,
---      },
---   },
---   ["or"] = function (ops) end, boolean_binop,
---   ["and"] = function (ops) end, boolean_binop,
---   [".."] = {
---      [2] = {
---         ["string"] = {
---            ["string"] = STRING,
---            ["number"] = STRING,
---         },
---         ["number"] = {
---            ["number"] = STRING,
---            ["string"] = STRING,
---         },
---      },
---   },
---}
-
---local op_types = {
---   ["#"] = true,
---   ["+"] = true,
---   ["-"] = true,
---   ["*"] = true,
---   ["/"] = true,
---   ["=="] = true,
---   ["~="] = true,
---   ["<="] = true,
---   [">="] = true,
---   ["<"] = true,
---   [">"] = true,
---   ["not"] = true,
---   ["or"] = true,
---   ["and"] = true,
---   [".."] = true,
---}
 
 local op_types = {}
 for k, _ in pairs(basic_op_types) do op_types[k] = true end
@@ -3169,7 +3013,4 @@ end,
 recurse_ast(ast, visit)
 return errors
 end
-
---print(inspect(tl))
-
 return tl
