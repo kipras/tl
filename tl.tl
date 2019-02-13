@@ -1761,26 +1761,28 @@ local function boolean_union_binop(ops)
    return { typename = "uniontype", types = {ops[1], ops[2]} }
 end
 
----Relational operations can only return a number, and can only operate if all operands are numbers
--- or union types that can contain a number
-local function relational_union_binop(ops)
-   for _, op in ipairs(ops) do
-      if op.typename == "uniontype" then
-         local union_has_number = false
-         for _, t in ipairs(op.types) do
-            if t.typename == "number" then
-               union_has_number = true
-               break
-            end
+local function relational_op_is(op, typename)
+   if op.typename == typename then
+      return true
+   elseif op.typename == "uniontype" then
+      for _, t in ipairs(op.types) do
+         if t.typename == typename then
+            return true
          end
-         if not union_has_number then
-            return nil
-         end
-      elseif op.typename ~= "number" then
-         return nil
       end
+   else
+      return false
    end
-   return NUMBER
+end
+
+---A relational operator can only compare two numbers or two strings
+local function relational_union_binop(ops)
+   if (relational_op_is(ops[1], "number") and relational_op_is(ops[2], "number")) or
+           (relational_op_is(ops[1], "string") and relational_op_is(ops[2], "string")) then
+      return BOOLEAN
+   else
+      return nil
+   end
 end
 
 ---Concatenation operation is possible if both args can contain a number or string.

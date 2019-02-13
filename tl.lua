@@ -1,17 +1,5 @@
 local tl = {}
 local inspect = require("inspect")
-
-local _print = print
-print = function (...)
-   local args = {...}
-   for idx, arg in ipairs(args) do
-      if type(arg) ~= "string" then
-         args[idx] = inspect(arg)
-      end
-   end
-   return _print(table.unpack(args))
-end
-
 local keywords = {
    ["and"] = true,
    ["break"] = true,
@@ -1732,24 +1720,25 @@ local function boolean_union_binop(ops)
       },
    }
 end
-local function relational_union_binop(ops)
-   for _, op in ipairs(ops) do
-      if op.typename == "uniontype" then
-         local union_has_number = false
-         for _, t in ipairs(op.types) do
-            if t.typename == "number" then
-               union_has_number = true
-               break
-            end
+local function relational_op_is(op, typename)
+   if op.typename == typename then
+      return true
+   elseif op.typename == "uniontype" then
+      for _, t in ipairs(op.types) do
+         if t.typename == typename then
+            return true
          end
-         if not union_has_number then
-            return nil
-         end
-      elseif op.typename ~= "number" then
-         return nil
       end
+   else
+      return false
    end
-   return NUMBER
+end
+local function relational_union_binop(ops)
+   if relational_op_is(ops[1], "number") and relational_op_is(ops[2], "number") or relational_op_is(ops[1], "string") and relational_op_is(ops[2], "string") then
+      return BOOLEAN
+   else
+      return nil
+   end
 end
 local function concat_union_binop(ops)
    if #ops ~= 2 then
